@@ -1,0 +1,31 @@
+{
+  "name": "@denali-js/loader",
+  "version": "0.0.1",
+  "description": "The bundle loader used by compiled Denali applications to load modules at runtime",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "rm -rf dist && tsc",
+    "prepublishOnly": "npm run build",
+    "test": "ava"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/denali-js/loader.git"
+  },
+  "author": "Dave Wasmer",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/denali-js/loader/issues"
+  },
+  "homepage": "https://github.com/denali-js/loader#readme",
+  "devDependencies": {
+    "ava": "^0.24.0",
+    "semantic-release": "^8.2.0",
+    "typescript": "^2.6.2"
+  },
+  "dependencies": {
+    "@types/node": "^8.0.53",
+    "@types/resolve": "^0.0.4",
+    "resolve": "^1.5.0"
+  }
+}
