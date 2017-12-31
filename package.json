@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "description": "The bundle loader used by compiled Denali applications to load modules at runtime",
   "main": "dist/index.js",
+  "typings": "dist/index.d.ts",
   "scripts": {
     "build": "rm -rf dist && tsc",
     "prepublishOnly": "npm run build",
@@ -26,6 +27,7 @@
   "dependencies": {
     "@types/node": "^8.0.53",
     "@types/resolve": "^0.0.4",
+    "is-builtin-module": "^2.0.0",
     "resolve": "^1.5.0"
   }
 }

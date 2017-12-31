@@ -1,41 +1,64 @@
 import * as path from 'path';
 import { sync as resolve } from 'resolve';
+import * as isBuiltinModule from 'is-builtin-module';
+import isRelative from './is-relative';
+import withoutExtension from './without-extension';
+
+export interface ModuleFactory {
+  (module: NodeModule, exports: {}, require: NodeRequire, filename: string, dirname: string): void;
+}
+
+export interface Fallback<T> {
+  (root?: string, from?: string, loadpath?: string): T;
+}
 
 export default class Loader {
 
   cwd: string;
   parent: Loader;
   pkgName: string;
+  version: string;
   children = new Map<string, Loader>();
+  // We type this to `any` to avoid circular dependencies, but Denali uses this during bootup
+  resolver: any;
 
   factories = new Map<string, ModuleFactory>();
   cache = new Map<string, any>();
   main: string;
 
-  constructor(parent?: Loader, pkgName?: string) {
+  constructor(pkgName: string, version: string, parent?: Loader) {
+    this.pkgName = pkgName;
+    this.version = version;
     if (parent) {
       this.parent = parent;
-      this.pkgName = pkgName;
       this.cwd = path.join(parent.cwd, 'node_modules', pkgName);
     } else {
       this.cwd = process.cwd();
     }
   }
 
-  scope(pkgName: string, version: string): Loader {
-    let loader = new Loader(this, pkgName);
-    this.children.set(pkgName, loader);
-    return loader;
+  protected dir(): string {
+    if (this.parent) {
+      return path.join(this.parent.dir(), 'node_modules', this.pkgName);
+    }
+    return process.cwd();
   }
 
-  add(modulepath: string, factory: ModuleFactory, options: { main?: boolean } = {}): void {
+  scope(pkgName: string, version: string, fragmentFactory: (loader: Loader) => void) {
+    let loader = new Loader(pkgName, version, this);
+    this.children.set(pkgName, loader);
+    fragmentFactory(loader);
+  }
+
+  add(modulepath: string, options: { isMain?: boolean } = {}, factory: ModuleFactory): void {
+    modulepath = withoutExtension(modulepath);
     this.factories.set(modulepath, factory);
-    if (options.main) {
+    if (options.isMain) {
       this.main = modulepath;
     }
   }
 
-  loadFrom(from: string, loadpath: string): any {
+  protected loadFrom(from: string, loadpath: string): any {
     if (isRelative(loadpath)) {
       // require('./foo/bar');
       return this.loadRelative(from, loadpath);
@@ -45,32 +68,44 @@ export default class Loader {
     }
   }
 
-  load(loadpath: string) {
-    return this.loadRelative('/', path.join('.', loadpath));
+  load<T>(loadpath: string): T {
+    if (path.isAbsolute(loadpath)) {
+      loadpath = path.relative('/', loadpath);
+    }
+    return this.loadRelative<T>('/', path.join('.', loadpath));
   }
 
-  loadMain() {
+  protected loadMain() {
     return this.load(this.main);
   }
 
-  loadRelative(from: string, loadpath: string): any {
-    let modulepath = path.join(from, path.basename(loadpath, path.extname(loadpath)));
+  protected findVariant(modulepath: string): string | false {
     let variants = [ modulepath, `${ modulepath }/index` ];
     for (let variant of variants) {
       if (this.factories.has(variant)) {
-        if (!this.cache.has(variant)) {
-          this.loadModule(from, variant);
-        }
-        return this.cache.get(variant);
+        return variant;
       }
     }
-    this.fallback(from, loadpath);
   }
 
-  loadModule(from: string, modulepath: string): void {
+  loadRelative<T>(from: string, loadpath: string): T;
+  loadRelative<T, U>(from: string, loadpath: string, fallback: Fallback<U>): T | U;
+  loadRelative<T, U>(from: string, loadpath: string, fallback: Fallback<U> = this.fallback): T | U {
+    let modulepath = path.join(from, withoutExtension(loadpath));
+    let variant = this.findVariant(modulepath);
+    if (!variant) {
+      return fallback(this.dir(), from, loadpath);
+    }
+    if (!this.cache.has(variant)) {
+      this.loadModule(from, variant);
+    }
+    return <T>this.cache.get(variant).exports;
+  }
+
+  protected loadModule(from: string, modulepath: string): void {
     let factory = this.factories.get(modulepath);
+    let require = this.loadFrom.bind(this, path.dirname(modulepath));
     let dirname = path.dirname(modulepath);
-    let require = this.loadFrom.bind(this, dirname);
     let absoluteFilepath = path.join(this.cwd, modulepath.slice(1));
     let absoluteDirpath = path.join(this.cwd, dirname.slice(1));
     let exports = {};
@@ -86,10 +121,12 @@ export default class Loader {
     this.cache.set(modulepath, module);
     factory(module, exports, require, absoluteFilepath, absoluteDirpath);
     module.loaded = true;
-    module.parent.children.push(module);
+    if (module.parent) {
+      module.parent.children.push(module);
+    }
   }
 
-  loadPackage(loadpath: string): any {
+  protected loadPackage(loadpath: string): any {
     let [ pkgName, ...childpathParts ] = loadpath.split('/');
     // Handle scoped packages
     if (pkgName.startsWith('@')) {
@@ -108,19 +145,15 @@ export default class Loader {
     return this.fallback(null, loadpath);
   }
 
-  fallback(from: string, loadpath: string) {
-    if (this.parent) {
-      return this.parent.loadFrom(from, loadpath);
+  protected fallback(from: string, loadpath: string): any {
+    if (from === null) {
+      from = '';
     }
-    return require(resolve(loadpath, { basedir: path.dirname(from.slice(1)) }));
+    from = path.join(this.dir(), from);
+    if (isBuiltinModule(loadpath)) {
+      return require(loadpath);
+    }
+    return require(resolve(loadpath, { basedir: from }));
   }
 
-}
-
-export interface ModuleFactory {
-  (module: NodeModule, exports: {}, require: NodeRequire, filename: string, dirname: string): void;
-}
-
-function isRelative(p: string) {
-  return p.startsWith('.');
 }

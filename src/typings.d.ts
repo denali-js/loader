@@ -1,1 +1,1 @@
-declare module 'is-relative';
+declare module 'is-builtin-module';
