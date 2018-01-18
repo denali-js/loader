@@ -58,7 +58,7 @@ export default class Loader {
     }
   }
 
-  protected loadFrom(from: string, loadpath: string): any {
+  loadFrom(from: string, loadpath: string): any {
     if (isRelative(loadpath)) {
       // require('./foo/bar');
       return this.loadRelative(from, loadpath);
