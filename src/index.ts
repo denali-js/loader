@@ -153,6 +153,9 @@ export default class Loader {
     if (isBuiltinModule(loadpath)) {
       return require(loadpath);
     }
+    if (this.parent) {
+      return this.parent.loadFrom(from, loadpath);
+    }
     return require(resolve(loadpath, { basedir: from }));
   }
 
