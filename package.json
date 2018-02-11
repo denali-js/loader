@@ -1,6 +1,6 @@
 {
   "name": "@denali-js/loader",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "The bundle loader used by compiled Denali applications to load modules at runtime",
   "main": "dist/index.js",
   "typings": "dist/index.d.ts",
