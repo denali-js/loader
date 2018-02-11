@@ -16,6 +16,7 @@ export default class Loader {
 
   cwd: string;
   parent: Loader;
+  root: Loader;
   pkgName: string;
   version: string;
   children = new Map<string, Loader>();
@@ -31,6 +32,11 @@ export default class Loader {
     this.version = version;
     if (parent) {
       this.parent = parent;
+      let root = parent;
+      while (root.parent) {
+        root = parent.parent;
+      }
+      this.root = root;
       this.cwd = path.join(parent.cwd, 'node_modules', pkgName);
     } else {
       this.cwd = process.cwd();
@@ -94,7 +100,7 @@ export default class Loader {
     let modulepath = path.join(from, withoutExtension(loadpath));
     let variant = this.findVariant(modulepath);
     if (!variant) {
-      return fallback(this.dir(), from, loadpath);
+      return fallback.call(this, from, loadpath);
     }
     if (!this.cache.has(variant)) {
       this.loadModule(from, variant);
@@ -137,6 +143,13 @@ export default class Loader {
       let childpath = childpathParts.join('/');
       // require('some-pkg')
       if (childpath.length === 0) {
+        // Ensure the container singleton is always the same instance
+        // TODO: move the container into this package
+        if (pkgName === 'denali') {
+          let denali = <any>pkgLoader.loadMain();
+          denali.container = this.root.loadPackage('denali').container;
+          return denali;
+        }
         return pkgLoader.loadMain();
       }
       // require('some-pkg/foo/bar')
