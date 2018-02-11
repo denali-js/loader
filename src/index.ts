@@ -145,7 +145,7 @@ export default class Loader {
       if (childpath.length === 0) {
         // Ensure the container singleton is always the same instance
         // TODO: move the container into this package
-        if (pkgName === 'denali') {
+        if (pkgName === 'denali' && this.root) {
           let denali = <any>pkgLoader.loadMain();
           denali.container = this.root.loadPackage('denali').container;
           return denali;
